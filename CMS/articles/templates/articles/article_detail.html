@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ article.title }} - CMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">CMS Articles</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="btn btn-light btn-sm ms-2" href="/admin/">Admin Panel</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <article>
+            <h1 class="mb-3">{{ article.title }}</h1>
+            <div class="mb-4">
+                <small class="text-muted">
+                    Created: {{ article.created_at|date:"M d, Y H:i" }} |
+                    Updated: {{ article.updated_at|date:"M d, Y H:i" }}
+                </small>
+            </div>
+            <div class="content">
+                {{ article.content|linebreaks }}
+            </div>
+        </article>
+        <div class="mt-4">
+            <a href="{% url 'article_list' %}" class="btn btn-secondary">← Back to Articles</a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
