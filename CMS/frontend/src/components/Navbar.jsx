@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
+import { apiUrl } from '../config';
 
 const Navbar = () => {
   const openAdminPanel = () => {
-    window.open('/admin/', '_blank');
+    window.open(apiUrl('/admin/'), '_blank');
   };
 
   return (

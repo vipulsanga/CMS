@@ -1,4 +1,5 @@
 import json
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -45,6 +46,11 @@ class ArticleReactPagesTests(TestCase):
         self.assertContains(response, 'Admin Login')
         self.assertContains(response, 'Sign in with your Django account')
 
+    def test_admin_dashboard_redirects_anonymous_users_to_login(self):
+        response = self.client.get(reverse('admin_dashboard'))
+
+        self.assertRedirects(response, f"{reverse('admin_login')}?next={reverse('admin_dashboard')}")
+
     def test_admin_dashboard_contains_interactive_article_form(self):
         user = get_user_model().objects.create_user(username='admin', password='secret123')
         self.client.force_login(user)
@@ -54,3 +60,53 @@ class ArticleReactPagesTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Create Article')
         self.assertContains(response, 'id="article-form"')
+
+    def test_article_create_rejects_unauthenticated_requests(self):
+        response = self.client.post(
+            reverse('api_article_list'),
+            data=json.dumps({'title': 'New article', 'content': 'Content'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_article_create_validates_payload(self):
+        user = get_user_model().objects.create_user(username='editor', password='secret123')
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse('api_article_list'),
+            data=json.dumps({'title': '', 'content': 'Content'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['error'], 'Title cannot be blank')
+
+    def test_article_delete_returns_no_content(self):
+        user = get_user_model().objects.create_user(username='deleter', password='secret123')
+        self.client.force_login(user)
+
+        response = self.client.delete(reverse('api_article_detail', args=[self.article.pk]))
+
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.content, b'')
+
+    @patch('articles.views.get_articles_collection')
+    def test_local_article_can_be_updated_when_mongo_is_available(self, get_collection):
+        mongo_collection = Mock()
+        mongo_collection.find_one.return_value = None
+        get_collection.return_value = mongo_collection
+        user = get_user_model().objects.create_user(username='editor2', password='secret123')
+        self.client.force_login(user)
+
+        response = self.client.patch(
+            reverse('api_article_detail', args=[self.article.pk]),
+            data=json.dumps({'title': 'Updated title'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.article.refresh_from_db()
+        self.assertEqual(self.article.title, 'Updated title')
+        mongo_collection.update_one.assert_not_called()

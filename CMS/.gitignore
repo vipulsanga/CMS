@@ -5,6 +5,9 @@ __pycache__/
 *.log
 *.pot
 *.pyc
+.env
+.env.local
+.env.*.local
 
 # Virtual environments
 env/

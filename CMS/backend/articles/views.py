@@ -4,16 +4,62 @@ from bson import ObjectId
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
 from .models import Article
 from .mongo_service import get_article_from_fallback, get_articles_collection
 
+MAX_TITLE_LENGTH = 200
+MAX_CONTENT_LENGTH = 20_000
+
 
 def _json_error(message, status=400):
-    return JsonResponse({'error': message}, status=status)
+    return JsonResponse({'error': message, 'status': status}, status=status)
+
+
+def _parse_json_body(request):
+    if request.content_type != 'application/json':
+        return None, _json_error('Content-Type must be application/json', status=415)
+    if not request.body:
+        return None, _json_error('A JSON request body is required')
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None, _json_error('Invalid JSON payload')
+    if not isinstance(payload, dict):
+        return None, _json_error('JSON payload must be an object')
+    return payload, None
+
+
+def _validate_article_payload(payload, *, partial=False):
+    allowed_fields = {'title', 'content'}
+    unknown_fields = set(payload) - allowed_fields
+    if unknown_fields:
+        return None, _json_error('Unsupported field(s): ' + ', '.join(sorted(unknown_fields)))
+    if partial and not payload:
+        return None, _json_error('At least one field must be supplied')
+    if not partial and set(payload) != allowed_fields:
+        return None, _json_error('Both title and content are required')
+
+    validated = {}
+    if 'title' in payload:
+        if not isinstance(payload['title'], str):
+            return None, _json_error('Title must be a string')
+        title = payload['title'].strip()
+        if not title:
+            return None, _json_error('Title cannot be blank')
+        if len(title) > MAX_TITLE_LENGTH:
+            return None, _json_error(f'Title must not exceed {MAX_TITLE_LENGTH} characters')
+        validated['title'] = title
+    if 'content' in payload:
+        if not isinstance(payload['content'], str):
+            return None, _json_error('Content must be a string')
+        if len(payload['content']) > MAX_CONTENT_LENGTH:
+            return None, _json_error(f'Content must not exceed {MAX_CONTENT_LENGTH} characters')
+        validated['content'] = payload['content']
+    return validated, None
 
 
 def _serialize_article(document):
@@ -24,7 +70,7 @@ def _serialize_article(document):
         'id': str(article_id),
         'title': document.get('title', ''),
         'content': document.get('content', ''),
-        'created_at': document.get('created_at'),
+        'created_at': document.get('created_at').isoformat() if hasattr(document.get('created_at'), 'isoformat') else document.get('created_at'),
     }
 
 
@@ -46,13 +92,29 @@ def _find_mongo_article(collection, pk):
         return collection.find_one({'_id': lookup_value})
 
 
+def _list_mongo_articles():
+    """Return MongoDB articles, newest first, for the admin dashboard."""
+    collection = get_articles_collection()
+    if collection is None:
+        return []
+    articles = [_serialize_article(article) for article in collection.find()]
+    return sorted(articles, key=lambda article: article['created_at'] or '', reverse=True)
+
+
 @require_http_methods(["GET", "POST"])
 def api_article_list(request):
     if request.method == 'GET':
         collection = get_articles_collection()
-        if collection is None:
-            articles = Article.objects.all().order_by('-created_at')
-            payload = [
+        if collection is not None:
+            articles = [_serialize_article(article) for article in collection.find()]
+            return JsonResponse(
+                sorted(articles, key=lambda article: article['created_at'] or '', reverse=True),
+                safe=False,
+            )
+
+        articles = Article.objects.all().order_by('-created_at')
+        return JsonResponse(
+            [
                 {
                     'id': article.id,
                     'title': article.title,
@@ -60,28 +122,23 @@ def api_article_list(request):
                     'created_at': article.created_at.isoformat() if article.created_at else None,
                 }
                 for article in articles
-            ]
-            return JsonResponse(payload, safe=False)
-
-        articles = list(collection.find().sort('created_at', -1))
-        return JsonResponse([_serialize_article(article) for article in articles], safe=False)
+            ],
+            safe=False,
+        )
 
     if not request.user.is_authenticated:
         return _json_error('Authentication required', status=401)
 
-    try:
-        payload = json.loads(request.body.decode('utf-8')) if request.body else {}
-    except json.JSONDecodeError:
-        return _json_error('Invalid JSON payload')
-
-    title = (payload.get('title') or '').strip()
-    content = payload.get('content') or ''
-    if not title:
-        return _json_error('Title is required')
+    payload, error = _parse_json_body(request)
+    if error:
+        return error
+    article_data, error = _validate_article_payload(payload)
+    if error:
+        return error
 
     collection = get_articles_collection()
     if collection is None:
-        article = Article.objects.create(title=title, content=content)
+        article = Article.objects.create(**article_data)
         return JsonResponse(
             {
                 'id': article.id,
@@ -95,8 +152,7 @@ def api_article_list(request):
     from datetime import datetime
 
     result = collection.insert_one({
-        'title': title,
-        'content': content,
+        **article_data,
         'created_at': datetime.utcnow(),
     })
     document = collection.find_one({'_id': result.inserted_id})
@@ -107,6 +163,7 @@ def api_article_list(request):
 def api_article_detail(request, pk):
     collection = get_articles_collection()
     article = _find_mongo_article(collection, pk)
+    is_mongo_article = article is not None
 
     if article is None:
         fallback_article = get_article_from_fallback(pk)
@@ -126,20 +183,19 @@ def api_article_detail(request, pk):
     if not request.user.is_authenticated:
         return _json_error('Authentication required', status=401)
 
-    try:
-        payload = json.loads(request.body.decode('utf-8')) if request.body else {}
-    except json.JSONDecodeError:
-        return _json_error('Invalid JSON payload')
-
     if request.method in {'PUT', 'PATCH'}:
-        if collection is None:
+        payload, error = _parse_json_body(request)
+        if error:
+            return error
+        update_data, error = _validate_article_payload(payload, partial=request.method == 'PATCH')
+        if error:
+            return error
+        if not is_mongo_article:
             fallback_article = get_article_from_fallback(pk)
             if fallback_article is None:
                 return _json_error('Article not found', status=404)
-            if 'title' in payload:
-                fallback_article.title = (payload.get('title') or '').strip() or fallback_article.title
-            if 'content' in payload:
-                fallback_article.content = payload.get('content')
+            for field, value in update_data.items():
+                setattr(fallback_article, field, value)
             fallback_article.save()
             return JsonResponse(
                 {
@@ -150,12 +206,6 @@ def api_article_detail(request, pk):
                 }
             )
 
-        update_data = {}
-        if 'title' in payload:
-            update_data['title'] = (payload.get('title') or '').strip()
-        if 'content' in payload:
-            update_data['content'] = payload.get('content')
-
         lookup_value = _resolve_article_id(pk)
         try:
             collection.update_one({'_id': ObjectId(str(pk))}, {'$set': update_data})
@@ -165,23 +215,24 @@ def api_article_detail(request, pk):
         updated_article = _find_mongo_article(collection, pk)
         return JsonResponse(_serialize_article(updated_article))
 
-    if collection is None:
+    if not is_mongo_article:
         fallback_article = get_article_from_fallback(pk)
-        if fallback_article is not None:
-            fallback_article.delete()
-        return JsonResponse({'deleted': True})
+        if fallback_article is None:
+            return _json_error('Article not found', status=404)
+        fallback_article.delete()
+        return HttpResponse(status=204)
 
     lookup_value = _resolve_article_id(pk)
     try:
         collection.delete_one({'_id': ObjectId(str(pk))})
     except Exception:
         collection.delete_one({'_id': lookup_value})
-    return JsonResponse({'deleted': True})
+    return HttpResponse(status=204)
 
 
 @login_required(login_url='admin_login')
 def admin_dashboard(request):
-    articles = Article.objects.all().order_by('-created_at')
+    articles = _list_mongo_articles()
     return render(request, 'admin_dashboard.html', {'articles': articles})
 
 

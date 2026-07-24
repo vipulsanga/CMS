@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiUrl } from '../config';
 
 const AdminPage = () => {
   const [articles, setArticles] = useState([]);
@@ -7,7 +8,7 @@ const AdminPage = () => {
 
   const loadArticles = async () => {
     try {
-      const response = await fetch('/api/articles/');
+      const response = await fetch(apiUrl('/api/articles/'));
       const data = await response.json();
       setArticles(data);
     } catch (error) {
@@ -24,7 +25,7 @@ const AdminPage = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
     const method = form.id ? 'PATCH' : 'POST';
-    const url = form.id ? `/api/articles/${form.id}/` : '/api/articles/';
+    const url = form.id ? apiUrl(`/api/articles/${form.id}/`) : apiUrl('/api/articles/');
 
     const response = await fetch(url, {
       method,
@@ -32,7 +33,7 @@ const AdminPage = () => {
         'Content-Type': 'application/json',
         'X-CSRFToken': getCookie('csrftoken'),
       },
-      credentials: 'same-origin',
+      credentials: 'include',
       body: JSON.stringify({ title: form.title, content: form.content }),
     });
 
@@ -43,10 +44,10 @@ const AdminPage = () => {
   };
 
   const handleDelete = async (id) => {
-    const response = await fetch(`/api/articles/${id}/`, {
+    const response = await fetch(apiUrl(`/api/articles/${id}/`), {
       method: 'DELETE',
       headers: { 'X-CSRFToken': getCookie('csrftoken') },
-      credentials: 'same-origin',
+      credentials: 'include',
     });
 
     if (response.ok) {
@@ -58,7 +59,7 @@ const AdminPage = () => {
     <div className="container py-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h1 className="mb-0">Admin Dashboard</h1>
-        <a href="http://localhost:8000/admin/logout/" className="btn btn-outline-secondary">
+        <a href={apiUrl('/admin/logout/')} className="btn btn-outline-secondary">
           Logout
         </a>
       </div>

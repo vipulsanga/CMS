@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { apiUrl } from '../config';
 
 const HomePage = () => {
   const [articles, setArticles] = useState([]);
 
   useEffect(() => {
-    fetch('/api/articles/')
+    fetch(apiUrl('/api/articles/'))
       .then((response) => response.json())
       .then((data) => setArticles(data))
       .catch((error) => console.error('Failed to load articles', error));

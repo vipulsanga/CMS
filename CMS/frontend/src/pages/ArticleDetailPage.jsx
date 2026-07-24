@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { apiUrl } from '../config';
 
 const ArticleDetailPage = () => {
   const { id } = useParams();
   const [article, setArticle] = useState(null);
 
   useEffect(() => {
-    fetch(`/api/articles/${id}/`)
+    fetch(apiUrl(`/api/articles/${id}/`))
       .then(async (response) => {
         const contentType = response.headers.get('content-type') || '';
         if (!response.ok) {

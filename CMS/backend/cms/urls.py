@@ -17,6 +17,11 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
+handler400 = 'cms.exceptions.api_bad_request'
+handler403 = 'cms.exceptions.api_permission_denied'
+handler404 = 'cms.exceptions.api_not_found'
+handler500 = 'cms.exceptions.api_server_error'
+
 urlpatterns = [
     path('django-admin/', admin.site.urls),
     path('', include('articles.urls')),
