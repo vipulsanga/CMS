@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ article.title }} - CMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="root"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel" data-type="module">
+        const article = {{ article_data|safe }};
+
+        const formatDateTime = (value) => {
+            if (!value) return '';
+            return new Date(value).toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+            });
+        };
+
+        const ArticleDetail = ({ article }) => (
+            <div>
+                <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
+                    <div className="container">
+                        <a className="navbar-brand" href="/">CMS Articles</a>
+                        <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                            <span className="navbar-toggler-icon"></span>
+                        </button>
+                        <div className="collapse navbar-collapse" id="navbarNav">
+                            <ul className="navbar-nav ms-auto">
+                                <li className="nav-item">
+                                    <a className="btn btn-light btn-sm ms-2" href="/admin/">Admin Panel</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </nav>
+
+                <div className="container mt-4">
+                    <article>
+                        <h1 className="mb-3">{article.title}</h1>
+                        <div className="mb-4">
+                            <small className="text-muted">
+                                Created: {formatDateTime(article.created_at)} | Updated: {formatDateTime(article.updated_at)}
+                            </small>
+                        </div>
+                        <div className="content">{article.content}</div>
+                    </article>
+                    <div className="mt-4">
+                        <a href="/" className="btn btn-secondary">← Back to </a>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ArticleDetail article={article} />);
+    </script>
+</body>
+</html>

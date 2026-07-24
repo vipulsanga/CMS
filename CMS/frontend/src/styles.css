@@ -1,0 +1,16 @@
+body {
+  background: #f8f9fa;
+}
+
+.btn {
+  border-radius: 0.5rem;
+}
+
+.card {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+}
+
+.card-link {
+  text-decoration: none;
+}

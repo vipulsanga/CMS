@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f8fafc; color: #111827; }
+    .topbar { background: #0f172a; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+    .container { padding: 24px; }
+    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th, td { border-bottom: 1px solid #e5e7eb; padding: 10px; text-align: left; }
+    .actions button { margin-right: 8px; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; }
+    .btn { display: inline-block; margin-bottom: 12px; padding: 8px 12px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; }
+    .form-row { display: flex; gap: 12px; margin-bottom: 8px; }
+    input, textarea { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
+    textarea { min-height: 90px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h2>CMS Admin Dashboard</h2>
+    <a href="{% url 'admin_logout' %}" style="color:white; text-decoration:none;">Logout</a>
+  </div>
+  <div class="container">
+    <div class="card">
+      <h3>Create Article</h3>
+      <form id="article-form">
+        {% csrf_token %}
+        <input type="hidden" id="article-id" value="">
+        <div class="form-row">
+          <input id="article-title" placeholder="Title" required>
+        </div>
+        <div class="form-row">
+          <textarea id="article-content" placeholder="Content"></textarea>
+        </div>
+        <button class="btn" type="submit">Create Article</button>
+        <button class="btn hidden" id="cancel-edit" type="button">Cancel</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Articles</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="article-list">
+          {% for article in articles %}
+            <tr data-id="{{ article.id }}">
+              <td>{{ article.id }}</td>
+              <td>{{ article.title }}</td>
+              <td>{{ article.created_at }}</td>
+              <td class="actions">
+                <button type="button" onclick="editArticle('{{ article.id }}', '{{ article.title|escapejs }}', '{{ article.content|escapejs }}')">Edit</button>
+                <button type="button" onclick="deleteArticle('{{ article.id }}')">Delete</button>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">No articles yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('article-form');
+    const titleInput = document.getElementById('article-title');
+    const contentInput = document.getElementById('article-content');
+    const idInput = document.getElementById('article-id');
+    const cancelButton = document.getElementById('cancel-edit');
+    const submitButton = form.querySelector('button[type="submit"]');
+    const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const id = idInput.value;
+      const payload = { title: titleInput.value, content: contentInput.value };
+      const method = id ? 'PATCH' : 'POST';
+      const url = id ? `/api/articles/${id}/` : '/api/articles/';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken,
+        },
+        body: JSON.stringify(payload),
+        credentials: 'same-origin',
+      });
+
+      if (response.ok) {
+        location.reload();
+      } else {
+        const error = await response.json().catch(() => ({}));
+        alert(error.error || 'Unable to save article');
+      }
+    });
+
+    async function deleteArticle(id) {
+      if (!confirm('Delete this article?')) return;
+      const response = await fetch(`/api/articles/${id}/`, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': csrfToken },
+        credentials: 'same-origin',
+      });
+      if (response.ok) {
+        location.reload();
+      } else {
+        const error = await response.json().catch(() => ({}));
+        alert(error.error || 'Unable to delete article');
+      }
+    }
+
+    function editArticle(id, title, content) {
+      idInput.value = id;
+      titleInput.value = title;
+      contentInput.value = content;
+      submitButton.textContent = 'Save Changes';
+      cancelButton.classList.remove('hidden');
+      titleInput.focus();
+    }
+
+    cancelButton.addEventListener('click', () => {
+      idInput.value = '';
+      titleInput.value = '';
+      contentInput.value = '';
+      submitButton.textContent = 'Create Article';
+      cancelButton.classList.add('hidden');
+    });
+  </script>
+</body>
+</html>
