@@ -19,7 +19,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: backend
+        working-directory: CMS/backend
 
     steps:
 
@@ -45,7 +45,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: frontend
+        working-directory: CMS/frontend
 
     steps:
 
@@ -58,7 +58,7 @@ jobs:
           node-version: 20
 
       - name: Install Frontend Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build React App
         run: npm run build
