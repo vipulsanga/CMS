@@ -14,8 +14,10 @@ on:
 jobs:
 
   backend:
-
     runs-on: ubuntu-latest
+
+    env:
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
 
     defaults:
       run:
