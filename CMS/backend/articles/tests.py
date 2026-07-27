@@ -37,7 +37,7 @@ class ArticleReactPagesTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<div id="root"></div>')
-        self.assertContains(response, 'index-')
+        self.assertContains(response, 'assets/index.js')
 
     def test_admin_login_page_is_available(self):
         response = self.client.get(reverse('admin_login'))
@@ -110,3 +110,26 @@ class ArticleReactPagesTests(TestCase):
         self.article.refresh_from_db()
         self.assertEqual(self.article.title, 'Updated title')
         mongo_collection.update_one.assert_not_called()
+
+
+class SmokeTests(TestCase):
+    """Fast checks that the public application endpoints are reachable."""
+
+    def test_health_endpoint_reports_ok(self):
+        response = self.client.get(reverse('health_check'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'status': 'ok', 'service': 'cms'})
+
+    @patch('articles.views.get_articles_collection', return_value=None)
+    def test_article_list_endpoint_returns_a_json_list(self, _get_collection):
+        response = self.client.get(reverse('api_article_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.json(), list)
+
+    def test_frontend_shell_is_reachable(self):
+        response = self.client.get(reverse('frontend'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<div id="root"></div>')
